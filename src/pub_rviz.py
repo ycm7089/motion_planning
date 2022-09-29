@@ -7,8 +7,9 @@ from math import *
 import rospy
 import numpy as np
 # from move_base_msgs.msg import MoveBaseGoal
-from geometry_msgs.msg import PoseStamped, Point
+from geometry_msgs.msg import PoseStamped, Pose
 from visualization_msgs.msg import Marker
+from nav_msgs.msg import Path
 import tf
 
 def get_quaternion_from_euler(roll, pitch, yaw):
@@ -22,14 +23,21 @@ def get_quaternion_from_euler(roll, pitch, yaw):
 
 class Motion :
     def __init__(self) :
-        
-        self.arrow_pub = rospy.Publisher("/robot_position", Marker, queue_size=10)
-        self.points_pub = rospy.Publisher("/goal_position", Marker, queue_size=10)
+        # sub : 로봇 실시간으로 바뀌는 현재 포즈, 골지점 포즈, 속도할 필요가 있나? 어차피 갱신되는 로봇 포즈만 sub 해도 움직이는게 보일텐데?
+        self.cur_robot_pose_sub = rospy.Subscriber("/ss",Pose, self.posecb)
 
+        self.arrow_pub = rospy.Publisher("/robot_position", Marker, queue_size=1)
+        self.points_pub = rospy.Publisher("/goal_position", Marker, queue_size=1)
+        self.path_pub = rospy.Publisher("/robot_path", Path, queue_size= 1)
+
+        self.path = Path()
         self.robot_position = Marker()
         self.goal_position = Marker()
         self.cal_to_goal = PoseStamped()
-    
+
+    def posecb(self):
+        print("S")
+
     def robot_pose(self):
         quaternion = get_quaternion_from_euler(0.0, 0.0, pi/3)
 
