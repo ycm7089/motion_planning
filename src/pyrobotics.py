@@ -80,7 +80,7 @@ dt = 0.01
 MAX_LINEAR_SPEED = 20
 MAX_ANGULAR_SPEED = 10
 
-show_animation = True
+show_animation = False
 
 def move_to_pose(x_start, y_start, theta_start, x_goal, y_goal, theta_goal):
     x = x_start
@@ -113,7 +113,7 @@ def move_to_pose(x_start, y_start, theta_start, x_goal, y_goal, theta_goal):
         x = x + v * np.cos(theta) * dt
         y = y + v * np.sin(theta) * dt
         # print(len(np.array([0.5, 0, 1]).T), len(np.array([0.5, 0, 1])))
-
+        print(theta)
         if show_animation:  # pragma: no cover
             plt.cla()
             plt.arrow(x_start, y_start, np.cos(theta_start),

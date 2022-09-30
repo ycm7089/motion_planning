@@ -1,33 +1,33 @@
 #! /usr/bin/env python3
 
+from concurrent.futures import thread
 from math import *
-from re import S
 import rospy
 import numpy as np
-from geometry_msgs.msg import Pose, Twist
+from geometry_msgs.msg import Pose, Twist, PoseStamped
 import tf
 
 class Motion :
     def __init__(self) :
         
+        self.robot_pose = PoseStamped()
         self.goal_pose = Pose()
-        self.robot_pose = Pose()
 
-        self.theta_start = pi / 3
+        self.theta_start = pi / 2
 
         self.k_rho = 3.0
         self.k_alpha = 5.0
         self.k_beta = -2.0
 
-        self.max_linear_speed = 5.0
-        self.max_angular_speed = 3.0
+        self.max_linear_speed = 0.01
+        self.max_angular_speed = 0.03
 
         self._is_reach_goal = False
         self.br = tf.TransformBroadcaster()
         # 로봇 포즈 pub
         # 골 지점 pub
         # 속도 pub
-        self.robot_pose_pub = rospy.Publisher('/current_pose', Pose, queue_size=1)
+        self.robot_pose_pub = rospy.Publisher('/current_pose', PoseStamped, queue_size=1)
         self.robot_cmd_vel = rospy.Publisher('robot_vel', Twist, queue_size= 1)
 
     def get_quaternion_from_euler(self, roll, pitch, yaw):
@@ -42,14 +42,17 @@ class Motion :
     def robot_loc(self) :
         robot_quaternion = self.get_quaternion_from_euler(0.0, 0.0, self.theta_start)
 
-        self.robot_pose.position.x = 0.0
-        self.robot_pose.position.y = 0.0
-        self.robot_pose.position.z = 0.0
+        self.robot_pose.header.frame_id = "map"
+        self.robot_pose.header.stamp = rospy.Time.now()
 
-        self.robot_pose.orientation.x = robot_quaternion[0]
-        self.robot_pose.orientation.y = robot_quaternion[1]
-        self.robot_pose.orientation.z = robot_quaternion[2]
-        self.robot_pose.orientation.w = robot_quaternion[3]
+        self.robot_pose.pose.position.x = -5.0
+        self.robot_pose.pose.position.y = -3.0
+        self.robot_pose.pose.position.z = 0.0
+
+        self.robot_pose.pose.orientation.x = robot_quaternion[0]
+        self.robot_pose.pose.orientation.y = robot_quaternion[1]
+        self.robot_pose.pose.orientation.z = robot_quaternion[2]
+        self.robot_pose.pose.orientation.w = robot_quaternion[3]
 
         goal_quaternion = self.get_quaternion_from_euler(0.0, 0.0, 0.0)
 
@@ -66,8 +69,8 @@ class Motion :
 
     def move_to_goal (self, robot, goal):
 
-        x_start = robot.position.x
-        y_start = robot.position.y
+        x_start = robot.pose.position.x
+        y_start = robot.pose.position.y
         theta = self.theta_start
 
         x_goal = goal.position.x
@@ -79,21 +82,20 @@ class Motion :
         dt = 0.01
         
         rho = sqrt( (self.delta_x)**2 + (self.delta_y)**2 )
-        alpha = -theta + np.arctan2(self.delta_y, self.delta_x)
-        beta = -theta - alpha + theta_goal
 
         self.tf_pub(x_start, y_start, theta)
 
         while not self._is_reach_goal :
             if rho > 0.001 :
+
                 self.delta_x = x_goal - x_start
                 self.delta_y = y_goal - y_start
                 
                 rho = sqrt( (self.delta_x)**2 + (self.delta_y)**2 )
-                
-                v,w = self.cal_vel(rho, alpha, beta)
+                alpha = -theta + np.arctan2(self.delta_y, self.delta_x)
+                beta = -theta - alpha + theta_goal
 
-                # print(rho)
+                v,w = self.cal_vel(rho, alpha, beta)
 
                 if abs(v) > self.max_linear_speed:
                     v = np.sign(v) * self.max_linear_speed
@@ -105,29 +107,34 @@ class Motion :
                 x_start = x_start + v * np.cos(theta) * dt
                 y_start = y_start + v * np.sin(theta) * dt
                 
-                self.robot_pose.position.x = x_start
-                self.robot_pose.position.y = y_start
-                # print(x,y, v,w)
-                self.robot_pose_pub.publish(self.robot_pose)
+                self.robot_pose.pose.position.x = x_start
+                self.robot_pose.pose.position.y = y_start
+                self.robot_pose.pose.orientation.w = theta
 
-                self.tf_pub(x_start, y_start, theta)    
+                self.robot_pose_pub.publish(self.robot_pose)
+                # if self.robot_pose.pose.position.x < 0:
+                print(self.robot_pose.pose.position.x)
+                self.tf_pub(x_start, y_start, theta)
 
             else :
-                v, w = 0.0
+                v= 0.0
+                w=0.0
+
                 self._is_reach_goal = True
         
         if self._is_reach_goal :
             print("Goal Reached")
+            self._is_reach_goal = False
 
     def cal_vel(self, rho, alpha, beta):
         rho = sqrt( (self.delta_x)**2 + (self.delta_y)**2 )
 
         v = self.k_rho * rho
         w = self.k_alpha * alpha + self.k_beta * beta
-        print(v,w)
+        # print(v,w)
         if alpha > pi /2 or alpha <= - pi /2 :
             v = - v
-            # w = - w
+            w = - w
 
         return v,w
 
